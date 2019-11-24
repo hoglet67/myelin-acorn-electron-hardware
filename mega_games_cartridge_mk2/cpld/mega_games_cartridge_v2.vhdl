@@ -23,8 +23,14 @@ entity MGC is
         -- Include shift-register based (as well as bit banged) SPI (adds ~20MC)
         -- = 8 bit shifter, 4 bit counter, 1 bit spi_start, 1 bit spi_bit_bang_mode
         IncludeSPIShifter : boolean := true;
+
         -- Clock the SPI port with CLK16MHz (adds ~8 MC)
-        UseFastClockForSPI : boolean := false
+        UseFastClockForSPI : boolean := false;
+
+        -- Use &FC71 and &FC72 (Plus 1 data and status) rather than &FCD8 for
+        -- the bit-bang interface (DO NOT SET THIS TO TRUE IF YOU ARE USING A
+        -- REAL PLUS 1 - IT WILL CLASH.)
+        UsePlus1Addresses : boolean := false
     );
     port (
         -- Inputs from the cartridge interface
@@ -48,19 +54,20 @@ entity MGC is
         -- area and the cartridge is selected.
 
         -- In the Master 128, Pin A2 is driven by AT13 (IC20 pin 17) or AT15
-        -- (IC20 pin 15), which are outputs from the memory controller IC. 
-        -- TODO scope this to see how it behaves.
+        -- (IC20 pin 15), which are outputs from the memory controller IC.
+        -- It sounds like it behaves differently to on the Electron, where
+        -- it's more of a chip select.
         nOE : in std_logic;  -- Pin A2
 
         -- Electron: CPU RnW line
-        -- Master: AA15 line; IC20 pin 19
+        -- Master: AA15 line; IC20 pin 19.  Active high chip select.
         ERnW_MCS : in std_logic;  -- Pin A4
 
         -- Electron: CPU READY line
         -- Master: BRnW line
         ERDY_MRnW : in std_logic;  -- Pin A11
 
-        -- Power-on reset; low for ~1ms on startup        
+        -- Power-on reset; low for ~1ms on startup
         nPWRRST : in std_logic;
 
         -- Outputs to ROM and RAM chip
@@ -107,6 +114,7 @@ architecture rtl of MGC is
     signal spi_fast_MOSI : std_logic := '0';
 
     signal RnW : std_logic;
+    signal selected : std_logic;
 
 begin
 
@@ -120,19 +128,23 @@ begin
     -- Derive RnW signal
     RnW <= ERnW_MCS when nMASDET = '1' else ERDY_MRnW;
 
+    -- Derive CS signal
+    selected <= '1' when
+        nOE = '0'  -- cartridge selected
+        and (nMASDET = '1' or ERnW_MCS = '1')  -- if on Master, only when MCS high
+        else '0';
+
     -- ROM/RAM output enable
     RR_nOE <= '0' when
-        nOE = '0'      -- cartridge selected
-        and RnW = '1'  -- cpu is reading
+        RnW = '1'  -- cpu is reading
         else '1';
 
     -- ROM/RAM write strobe
-    -- /WE is also gated with the high clock period, as D isn't held for 
+    -- /WE is also gated with the high clock period, as D isn't held for
     -- long past the falling edge.  It should go low when PHI0 is high and
     -- RnW is low.
-    RR_nWE <= '0' when 
-        nOE = '0'   -- cartridge selected
-        and RnW = '0'  -- cpu is writing
+    RR_nWE <= '0' when
+        RnW = '0'  -- cpu is writing
         and PHI = '1'  -- high clock period
         and ((QA = '0' and lower_rom_unlocked = '1')      -- lower bank unlocked
              or (QA = '1' and upper_rom_unlocked = '1'))  -- upper bank unlocked
@@ -140,29 +152,30 @@ begin
 
     -- ROM chip select
     ROM_nCE <= '0' when
-        nOE = '0'  -- cartridge selected
+        selected = '1'
         and ((QA = '0' and lower_bank_rom_nram = '1')      -- lower bank is ROM
              or (QA = '1' and upper_bank_rom_nram = '1'))  -- upper bank is ROM
         else '1';
 
     -- RAM chip select
     RAM_nCE <= '0' when
-        nOE = '0'  -- cartridge selected
+        selected = '1'
         and ((QA = '0' and lower_bank_rom_nram = '0')      -- lower bank is RAM
              or (QA = '1' and upper_bank_rom_nram = '0'))  -- upper bank is RAM
         else '1';
 
     -- Handle reads from registers
     D <=
-        -- Never drive the bus for CPU writes
-        "ZZZZZZZZ" when RnW = '0'
+        -- Never drive the bus for CPU writes or during the clock low period
+        "ZZZZZZZZ" when RnW = '0' or PHI = '0'
         -- Read machine type
         else "0000000" & nMASDET when nPGFC = '0' and A = x"D2"
         -- Read shift register
         else spi_shift_register_phi when nPGFC = '0' and A = x"D4" and IncludeSPIShifter and not UseFastClockForSPI
         else spi_shift_register_16 when nPGFC = '0' and A = x"D4" and IncludeSPIShifter and UseFastClockForSPI
         -- Read MISO
-        else SD_MISO & "00000" & spi_bit_bang_SCK & spi_bit_bang_MOSI when nPGFC = '0' and A = x"D8"
+        else SD_MISO & "00000" & spi_bit_bang_SCK & spi_bit_bang_MOSI when nPGFC = '0' and
+            ((UsePlus1Addresses and A = x"72") or (not UsePlus1Addresses and A = x"D8"))
         -- Catchall
         else "ZZZZZZZZ";
 
@@ -206,7 +219,7 @@ begin
                         spi_bit_bang_MOSI <= spi_shift_register_phi(7);
                     end if;
                 end if;
-                if nPGFC = '0' and A = x"D8" then
+                if nPGFC = '0' and ((UsePlus1Addresses and A = x"71") or (not UsePlus1Addresses and A = x"D8")) then
                     spi_bit_bang_MOSI <= D(0);
                     spi_bit_bang_SCK <= D(1);
                 end if;
@@ -230,10 +243,10 @@ begin
             end if;
             if nRESET_sync = '0' then
                 inhibit_reset <= '0';
-                lower_bank_rom_nram <= '1';
-                upper_bank_rom_nram <= '1';
-                lower_rom_unlocked <= '0';
-                upper_rom_unlocked <= '0';
+                --lower_bank_rom_nram <= '1';
+                --upper_bank_rom_nram <= '1';
+                --lower_rom_unlocked <= '0';
+                --upper_rom_unlocked <= '0';
             end if;
 
             -- 1-2 MHz SPI
