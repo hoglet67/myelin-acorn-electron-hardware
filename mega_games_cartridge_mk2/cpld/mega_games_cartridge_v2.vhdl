@@ -67,9 +67,6 @@ entity MGC is
         -- Master: BRnW line
         ERDY_MRnW : in std_logic;  -- Pin A11
 
-        -- Power-on reset; low for ~1ms on startup
-        nPWRRST : in std_logic;
-
         -- Outputs to ROM and RAM chip
         RR_nWE : out std_logic;
         RR_nOE : out std_logic;
@@ -225,7 +222,7 @@ begin
                 end if;
                 if nPGFC = '0' and A = x"D9" then
                     SD_CS1 <= D(0);
-                    -- SD_CS2 <= D(1);
+                    SD_CS2 <= D(1);
                     spi_bit_bang_mode <= '1';
                 end if;
                 if nPGFC = '0' and A = x"DC" then
