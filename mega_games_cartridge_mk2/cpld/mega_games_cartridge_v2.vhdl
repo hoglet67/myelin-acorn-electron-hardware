@@ -213,7 +213,8 @@ begin
                         spi_counter_phi <= "0000";
                         -- initialize MOSI with the MSB right now, and update it on the falling
                         -- edge of spi_fast_SCK.
-                        spi_bit_bang_MOSI <= spi_shift_register_phi(7);
+                        spi_shift_register_phi <= D;
+                        spi_bit_bang_MOSI <= D(7);
                     end if;
                 end if;
                 if nPGFC = '0' and ((UsePlus1Addresses and A = x"71") or (not UsePlus1Addresses and A = x"D8")) then
