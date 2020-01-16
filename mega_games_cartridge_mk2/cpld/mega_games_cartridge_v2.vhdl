@@ -143,8 +143,8 @@ begin
     RR_nWE <= '0' when
         RnW = '0'  -- cpu is writing
         and PHI = '1'  -- high clock period
-        and ((QA = '0' and lower_rom_unlocked = '1')      -- lower bank unlocked
-             or (QA = '1' and upper_rom_unlocked = '1'))  -- upper bank unlocked
+        and ((QA = '0' and (lower_rom_unlocked = '1' or lower_bank_rom_nram = '0'))     -- lower bank unlocked
+             or (QA = '1' and (upper_rom_unlocked = '1' or upper_bank_rom_nram = '0')))  -- upper bank unlocked
         else '1';
 
     -- ROM chip select
