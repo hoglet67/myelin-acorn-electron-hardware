@@ -240,11 +240,14 @@ begin
                 end if;
             end if;
             if nRESET_sync = '0' then
-                inhibit_reset <= '0';
-                --lower_bank_rom_nram <= '1';
-                --upper_bank_rom_nram <= '1';
-                --lower_rom_unlocked <= '0';
-                --upper_rom_unlocked <= '0';
+                if inhibit_reset = '0' then
+                    lower_bank_rom_nram <= '1';
+                    upper_bank_rom_nram <= '1';
+                end if;
+                lower_rom_unlocked <= '0';
+                upper_rom_unlocked <= '0';
+                SD_CS1 <= '1';
+                SD_CS2 <= '1';
             end if;
 
             -- 1-2 MHz SPI
