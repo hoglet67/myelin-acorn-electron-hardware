@@ -191,13 +191,13 @@ begin
             spi_start <= '0';
 
             -- Handle writes to registers
-            if nPGFC = '0' and A = x"D0" then
-                lower_bank_rom_nram <= not RnW;  -- TODO did I get this right?  reading sets it to ram?
-            end if;
-            if nPGFC = '0' and A = x"D1" then
-                upper_bank_rom_nram <= not RnW;  -- TODO did I get this right?  reading sets it to ram?
-            end if;
             if RnW = '0' then
+                if nPGFC = '0' and A = x"D0" then
+                    lower_bank_rom_nram <= not D(0); -- 0=ROM, 1=RAM
+                end if;
+                if nPGFC = '0' and A = x"D1" then
+                    upper_bank_rom_nram <= not D(0); -- 0=R0M, 1=RAM
+                end if;
                 if nPGFC = '0' and A = x"D3" then
                     inhibit_reset <= '1';
                 end if;
