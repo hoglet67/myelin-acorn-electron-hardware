@@ -85,6 +85,8 @@ end;
 
 architecture rtl of MGC is
 
+    constant VERSION_NUM : std_logic_vector(7 downto 0) := x"01";
+
     signal nRESET_sync : std_logic;
 
     -- High to map ROM into the bank, low to map RAM
@@ -166,7 +168,7 @@ begin
         -- Never drive the bus for CPU writes or during the clock low period
         "ZZZZZZZZ" when RnW = '0' or PHI = '0'
         -- Read machine type
-        else "0000000" & nMASDET when nPGFC = '0' and A = x"D2"
+        else nMASDET & VERSION_NUM(6 downto 0) when nPGFC = '0' and A = x"D2"
         -- Read shift register
         else spi_shift_register_phi when nPGFC = '0' and A = x"D4" and IncludeSPIShifter and not UseFastClockForSPI
         else spi_shift_register_16 when nPGFC = '0' and A = x"D4" and IncludeSPIShifter and UseFastClockForSPI
